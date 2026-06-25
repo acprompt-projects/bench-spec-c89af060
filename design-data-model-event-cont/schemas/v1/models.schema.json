@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bench-spec.dev/schemas/v1/models.schema.json",
+  "title": "BenchSpec Data Models v1.0.0",
+  "description": "Canonical data models for prompt benchmark suites, runs, results, and metrics. Shared by prompt-bench and prompt-viz.",
+  "$defs": {
+    "Uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "RFC 4122 v4 UUID"
+    },
+    "IsoTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp"
+    },
+    "Semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[\w.]+)?$",
+      "description": "Semantic version string"
+    },
+    "PromptEntry": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "#/$defs/Uuid" },
+        "name": { "type": "string", "minLength": 1 },
+        "template": { "type": "string", "minLength": 1, "description": "Prompt template; use {{variable}} for slots" },
+        "variables": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Default variable bindings (key=slot name, value=default)"
+        },
+        "tags": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "expected_output": { "type": "string", "description": "Reference answer for metric evaluation" }
+      },
+      "required": ["id", "name", "template"],
+      "additionalProperties": false
+    },
+    "Suite": {
+      "type": "object",
+      "title": "Suite",
+      "description": "A named collection of prompts forming a benchmark suite. Version: 1.0.0",
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/Semver", "const": "1.0.0" },
+        "id": { "$ref": "#/$defs/Uuid" },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "default": "" },
+        "prompts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PromptEntry" },
+          "minItems": 1
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true,
+          "default": {},
+          "description": "Arbitrary user-defined metadata"
+        },
+        "created_at": { "$ref": "#/$defs/IsoTimestamp" },
+        "updated_at": { "$ref": "#/$defs/IsoTimestamp" }
+      },
+      "required": ["schema_version", "id", "name", "prompts", "created_at"],
+      "additionalProperties": false
+    },
+    "ModelConfig": {
+      "type": "object",
+      "properties": {
+        "provider": { "type": "string", "examples": ["openai", "anthropic", "local"] },
+        "model": { "type": "string", "examples": ["gpt-4o", "claude-3-haiku"] },
+        "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
+        "max_tokens": { "type": "integer", "minimum": 1 },
+        "top_p": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "required": ["provider", "model"],
+      "additionalProperties": false
+    },
+    "Run": {
+      "type": "object",
+      "title": "Run",
+      "description": "An execution of a suite against one or more models. Version: 1.0.0",
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/Semver", "const": "1.0.0" },
+        "id": { "$ref": "#/$defs/Uuid" },
+        "suite_id": { "$ref": "#/$defs/Uuid" },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "running", "completed", "failed", "cancelled"],
+          "default": "pending"
+        },
+        "models": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ModelConfig" },
+          "minItems": 1
+        },
+        "started_at": { "$ref": "#/$defs/IsoTimestamp" },
+        "completed_at": { "$ref": "#/$defs/IsoTimestamp" },
+        "error": { "type": "string", "description": "Error message if status=failed" },
+        "metadata": { "type": "object", "additionalProperties": true, "default": {} },
+        "created_at": { "$ref": "#/$defs/IsoTimestamp" }
+      },
+      "required": ["schema_version", "id", "suite_id", "status", "models", "created_at"],
+      "additionalProperties": false
+    },
+    "TokenUsage": {
+      "type": "object",
+      "properties": {
+        "prompt_tokens": { "type": "integer", "minimum": 0 },
+        "completion_tokens": { "type": "integer", "minimum": 0 },
+        "total_tokens": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["prompt_tokens", "completion_tokens", "total_tokens"],
+      "additionalProperties": false
+    },
+    "Result": {
+      "type": "object",
+      "title": "Result",
+      "description": "Output from evaluating a single prompt-model pair within a run. Version: 1.0.0",
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/Semver", "const": "1.0.0" },
+        "id": { "$ref": "#/$defs/Uuid" },
+        "run_id": { "$ref": "#/$defs/Uuid" },
+        "prompt_id": { "$ref": "#/$defs/Uuid" },
+        "model": { "$ref": "#/$defs/ModelConfig" },
+        "output": { "type": "string" },
+        "latency_ms": { "type": "number", "minimum": 0, "description": "End-to-end latency in milliseconds" },
+        "tokens": { "$ref": "#/$defs/TokenUsage" },
+        "finish_reason": { "type": "string", "examples": ["stop", "length", "error"] },
+        "error": { "type": "string" },
+        "metadata": { "type": "object", "additionalProperties": true, "default": {} },
+        "created_at": { "$ref": "#/$defs/IsoTimestamp" }
+      },
+      "required": ["schema_version", "id", "run_id", "prompt_id", "model", "output", "created_at"],
+      "additionalProperties": false
+    },
+    "MetricScore": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "examples": ["accuracy", "bleu", "rouge_l", "latency_p95", "cost_usd"] },
+        "value": { "type": "number" },
+        "unit": { "type": "string", "default": "", "examples": ["", "ms", "usd", "%"] },
+        "pass": { "type": "boolean", "description": "Whether the score meets a configured threshold" }
+      },
+      "required": ["name", "value"],
+      "additionalProperties": false
+    },
+    "Metrics": {
+      "type": "object",
+      "title": "Metrics",
+      "description": "Computed metric scores for a result or aggregated across results. Version: 1.0.0",
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/Semver", "const": "1.0.0" },
+        "id": { "$ref": "#/$defs/Uuid" },
+        "result_id": { "$ref": "#/$defs/Uuid", "description": "FK to Result; null for aggregate metrics" },
+        "run_id": { "$ref": "#/$defs/Uuid" },
+        "scores": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/MetricScore" },
+          "minItems": 1
+        },
+        "aggregation": {
+          "type": "string",
+          "enum": ["per_prompt", "per_model", "per_suite", "overall"],
+          "description": "Granularity of aggregation"
+        },
+        "created_at": { "$ref": "#/$defs/IsoTimestamp" }
+      },
+      "required": ["schema_version", "id", "run_id", "scores", "aggregation", "created_at"],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/Suite" },
+    { "$ref": "#/$defs/Run" },
+    { "$ref": "#/$defs/Result" },
+    { "$ref": "#/$defs/Metrics" }
+  ]
+}
